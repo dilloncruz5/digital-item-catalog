@@ -1,0 +1,11 @@
+# Python venv
+backend/.venv/
+__pycache__/
+
+# Node modules
+frontend/node_modules/
+
+# Log and system files
+*.log
+.DS_Store
+.vscode/
