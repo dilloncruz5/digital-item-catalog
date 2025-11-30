@@ -1,5 +1,4 @@
 // src/pages/ItemDetailPage.tsx
-
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useParams } from "react-router-dom";
@@ -7,6 +6,9 @@ import { fetchItemById, submitItemForm } from "../api/items";
 import type { Item, SubmissionPayload } from "../types/item";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { ErrorMessage } from "../components/ErrorMessage";
+import { Button } from "../components/Button";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +27,11 @@ export function ItemDetailPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
+  // validation state
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [messageError, setMessageError] = useState<string | null>(null);
+
   useEffect(() => {
     if (Number.isNaN(itemId)) {
       setItemError("Invalid item id");
@@ -42,9 +49,49 @@ export function ItemDetailPage() {
       .finally(() => setLoadingItem(false));
   }, [itemId]);
 
+  // validation helpers
+  function validateName(name: string) {
+    if (!name || name.trim().length < 2) return "Name must be at least 2 characters.";
+    return null;
+  }
+
+  function validateEmail(email: string) {
+    if (!email) return "Email is required.";
+    if (!EMAIL_RE.test(email)) return "Please enter a valid email address.";
+    return null;
+  }
+
+  function validateMessage(message: string) {
+    if (!message || message.trim().length < 10) return "Message must be at least 10 characters.";
+    return null;
+  }
+
+  // run validation whenever fields change
+  useEffect(() => {
+    setNameError(validateName(formData.name));
+    setEmailError(validateEmail(formData.email));
+    setMessageError(validateMessage(formData.message));
+    // clear any server-side errors when user types
+    setSubmitError(null);
+    setSubmitSuccess(null);
+  }, [formData]);
+
+  const isFormValid = !nameError && !emailError && !messageError;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!item) return;
+
+    // final validation check before sending
+    const ne = validateName(formData.name);
+    const ee = validateEmail(formData.email);
+    const me = validateMessage(formData.message);
+
+    setNameError(ne);
+    setEmailError(ee);
+    setMessageError(me);
+
+    if (ne || ee || me) return;
 
     setSubmitting(true);
     setSubmitError(null);
@@ -67,64 +114,79 @@ export function ItemDetailPage() {
   }
 
   return (
-    <div>
+    <div className="detail-page">
       {loadingItem && <LoadingSpinner />}
+
       {itemError && <ErrorMessage message={itemError} />}
 
       {item && (
         <>
-          <h1>{item.name}</h1>
-          <p className="short-description">{item.shortDescription}</p>
-          <p className="full-description">{item.fullDescription}</p>
+          <div className="detail-header">
+            <h1>{item.name}</h1>
+            <p className="short-description">{item.shortDescription}</p>
+          </div>
 
-          <h2>Submit Feedback / Request</h2>
-          <form className="submit-form" onSubmit={handleSubmit}>
-            <div className="form-field">
-              <label htmlFor="name">Name</label>
-              <input
-                id="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, name: e.target.value }))
-                }
-                required
-              />
-            </div>
+          <div className="detail-body">
+            <section className="detail-info card">
+              <h2>Details</h2>
+              <p className="full-description">{item.fullDescription}</p>
+            </section>
 
-            <div className="form-field">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, email: e.target.value }))
-                }
-                required
-              />
-            </div>
+            <section className="detail-form card">
+              {submitSuccess && <div className="success banner">{submitSuccess}</div>}
+              {submitError && <ErrorMessage message={submitError} />}
 
-            <div className="form-field">
-              <label htmlFor="message">Message</label>
-              <textarea
-                id="message"
-                value={formData.message}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, message: e.target.value }))
-                }
-                rows={4}
-                required
-              />
-            </div>
+              <h2>Submit Feedback / Request</h2>
 
-            {submitError && <ErrorMessage message={submitError} />}
-            {submitSuccess && <div className="success">{submitSuccess}</div>}
+              <form className="submit-form" onSubmit={handleSubmit} noValidate>
+                <div className="form-field">
+                  <label htmlFor="name">Name</label>
+                  <input
+                    id="name"
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+                    aria-invalid={!!nameError}
+                    aria-describedby={nameError ? "name-error" : undefined}
+                    required
+                  />
+                  {nameError && <div id="name-error" className="field-error">{nameError}</div>}
+                </div>
 
-            <button type="submit" className="button" disabled={submitting}>
-              {submitting ? "Submitting..." : "Submit"}
-            </button>
-          </form>
+                <div className="form-field">
+                  <label htmlFor="email">Email</label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
+                    aria-invalid={!!emailError}
+                    aria-describedby={emailError ? "email-error" : undefined}
+                    required
+                  />
+                  {emailError && <div id="email-error" className="field-error">{emailError}</div>}
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="message">Message</label>
+                  <textarea
+                    id="message"
+                    value={formData.message}
+                    onChange={(e) => setFormData((p) => ({ ...p, message: e.target.value }))}
+                    rows={5}
+                    aria-invalid={!!messageError}
+                    aria-describedby={messageError ? "message-error" : undefined}
+                    required
+                  />
+                  {messageError && <div id="message-error" className="field-error">{messageError}</div>}
+                </div>
+
+                <div className="form-actions">
+                  <Button type="submit" label="Submit" loading={submitting} disabled={!isFormValid || submitting} fullWidth />
+                </div>
+              </form>
+            </section>
+          </div>
         </>
       )}
     </div>
